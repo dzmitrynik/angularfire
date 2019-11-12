@@ -1,6 +1,7 @@
 import { InjectionToken, NgZone } from '@angular/core';
 import { isPlatformServer } from '@angular/common';
 import { Observable, Subscription, queueScheduler as queue } from 'rxjs';
+import { first } from 'rxjs/operators';
 
 // Put in database.ts when we drop database-depreciated
 export const RealtimeDatabaseURL = new InjectionToken<string>('angularfire2.realtimeDatabaseURL');
@@ -16,7 +17,7 @@ export class FirebaseZoneScheduler {
       return new Observable<T>(subscriber => {
         const noop = () => {};
         const task = Zone.current.scheduleMacroTask('firebaseZoneBlock', noop, {}, noop, noop);
-        obs$.subscribe(
+        obs$.pipe(first()).subscribe(
           next => {
             if (task.state === 'scheduled') { task.invoke() };
             subscriber.next(next);
@@ -38,7 +39,7 @@ export class FirebaseZoneScheduler {
   runOutsideAngular<T>(obs$: Observable<T>): Observable<T> {
     return new Observable<T>(subscriber => {
       return this.zone.runOutsideAngular(() => {
-        return obs$.subscribe(
+        return obs$.pipe(first()).subscribe(
           value => this.zone.run(() => subscriber.next(value)),
           error => this.zone.run(() => subscriber.error(error)),
           ()    => this.zone.run(() => subscriber.complete()),
@@ -51,14 +52,14 @@ export class FirebaseZoneScheduler {
 export const runOutsideAngular = (zone: NgZone) => <T>(obs$: Observable<T>): Observable<T> => {
   return new Observable<T>(subscriber => {
     return zone.runOutsideAngular(() => {
-      runInZone(zone)(obs$).subscribe(subscriber);
+      runInZone(zone)(obs$).pipe(first()).subscribe(subscriber);
     });
   });
 }
 
 export const runInZone = (zone: NgZone) => <T>(obs$: Observable<T>): Observable<T> => {
   return new Observable<T>(subscriber => {
-    return obs$.subscribe(
+    return obs$.pipe(first()).subscribe(
       value => zone.run(() => subscriber.next(value)),
       error => zone.run(() => subscriber.error(error)),
       ()    => zone.run(() => subscriber.complete()),
